@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D AR Model Viewer</title>
+    
+    <!-- External Libraries -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+    
+    <!-- Local Stylesheets -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="main-viewer">
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="loader"></div>
+            </div>
+            
+            <model-viewer
+                id="modelViewer"
+                camera-controls
+                touch-action="pan-y"
+                auto-rotate
+                ar
+                ar-modes="webxr scene-viewer quick-look"
+                environment-image="neutral"
+                exposure="1"
+                shadow-intensity="1"
+                shadow-softness="0.5"
+                camera-orbit="45deg 55deg 4m"
+                min-camera-orbit="auto auto 2m"
+                max-camera-orbit="auto auto 10m"
+                tone-mapping="aces"
+                loading="eager"
+                reveal="auto"
+                style="--poster-color: transparent;">
+                
+                <div class="progress-bar" id="progress-bar" slot="progress-bar">
+                    <div class="update-bar"></div>
+                </div>
+            </model-viewer>
+            
+            <div class="model-info" id="modelInfo">
+                <strong>Model Controls:</strong><br>
+                • Drag to rotate • Scroll to zoom • Two fingers to pan
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <h2 class="panel-title">3D AR Viewer</h2>
+            
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    📁 Upload 3D Model
+                </button>
+                <input type="file" id="fileInput" class="file-input" accept=".glb,.gltf" />
+                <div class="file-info">Supports .GLB and .GLTF files</div>
+            </div>
+
+            <!-- QR Code Section -->
+            <div class="qr-section">
+                <div class="qr-title">🔗 Share QR Code</div>
+                <div class="qr-container" id="qrContainer">
+                    <div class="qr-placeholder">Upload a model to generate QR code</div>
+                </div>
+                <input type="text" class="share-url" id="shareUrl" placeholder="Share URL will appear here" readonly />
+                <button class="copy-btn" id="copyBtn" onclick="copyToClipboard()">📋 Copy Link</button>
+            </div>
+
+            <!-- AR Section -->
+            <div class="ar-section">
+                <button class="ar-btn" id="arBtn" onclick="openAR()">
+                    🥽 View in AR
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <!-- Local JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
