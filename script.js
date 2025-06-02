@@ -29,6 +29,15 @@ function setupEventListeners() {
     const modelViewer = document.getElementById('modelViewer');
     modelViewer.addEventListener('load', onModelLoad);
     modelViewer.addEventListener('error', onModelError);
+
+    // Add these lines in setupEventListeners function:
+modelViewer.addEventListener('progress', function(event) {
+    console.log('Loading progress:', event.detail.totalProgress);
+});
+
+modelViewer.addEventListener('model-visibility', function(event) {
+    console.log('Model visibility changed:', event.detail.visible);
+});
 }
 
 // File Upload Handler
@@ -61,6 +70,14 @@ function handleFileUpload(event) {
 
     // Load the model
     loadModel(objectUrl, file.name, modelId);
+
+    setTimeout(() => {
+    generateQRCode(modelId);
+    enableAR(true);
+    showModelInfo(true);
+    showLoading(false);
+    showNotification(`${file.name} loaded successfully!`);
+}, 1500);
 }
 
 // File Validation
@@ -83,6 +100,14 @@ function loadModel(url, filename, modelId) {
     // Store current model info
     modelViewer.dataset.modelId = modelId;
     modelViewer.dataset.filename = filename;
+    
+    // ADD THESE LINES:
+    // Force trigger the success functions after a delay
+    setTimeout(() => {
+        if (modelViewer.src) {
+            onModelLoad({ target: modelViewer });
+        }
+    }, 2000);
     
     // Force texture reload and proper lighting
     setTimeout(() => {
