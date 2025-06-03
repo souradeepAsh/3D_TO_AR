@@ -36,7 +36,6 @@ function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file type
     if (!isValidModelFile(file)) {
         showNotification('Please upload a .GLB or .GLTF file', 'error');
         return;
@@ -44,23 +43,32 @@ function handleFileUpload(event) {
 
     showLoading(true);
     
-    // Create object URL for the file
-    const objectUrl = URL.createObjectURL(file);
-    currentModelUrl = objectUrl;
+    // Convert file to base64 and store in localStorage
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const base64Data = e.target.result;
+        const modelId = generateModelId();
+        
+        // Store in localStorage (with size limits)
+        const modelData = {
+            data: base64Data,
+            filename: file.name,
+            uploadTime: new Date().toISOString(),
+            fileSize: formatFileSize(file.size)
+        };
+        
+        try {
+            localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
+            models.set(modelId, modelData);
+            currentModelUrl = base64Data;
+            loadModel(base64Data, file.name, modelId);
+        } catch (error) {
+            showNotification('File too large for sharing. Try a smaller model.', 'error');
+            showLoading(false);
+        }
+    };
     
-    // Generate unique ID for this model
-    const modelId = generateModelId();
-    
-    // Store model data
-    models.set(modelId, {
-        url: objectUrl,
-        filename: file.name,
-        uploadTime: new Date().toISOString(),
-        fileSize: formatFileSize(file.size)
-    });
-
-    // Load the model
-    loadModel(objectUrl, file.name, modelId);
+    reader.readAsDataURL(file);
 }
 
 // File Validation
