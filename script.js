@@ -504,16 +504,23 @@ async function checkUrlParameters() {
         
         // Method 1: Try to construct Cloudinary URL from modelId if it contains timestamp
         if (modelId.includes('model_')) {
-            const timestamp = modelId.split('_')[1];
-            if (timestamp && !isNaN(timestamp)) {
-                const possibleUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/raw/upload/3d_models/${timestamp}_model`;
-
-            // Test both .glb and .gltf extensions
+    const timestamp = modelId.split('_')[1];
+    if (timestamp && !isNaN(timestamp)) {
+        // Try to construct URL similar to the actual upload format
+        const baseUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+        
+        // Test both with and without version number
+        const urlVariations = [
+            `${baseUrl}/3d_models/${timestamp}_model`,
+            `${baseUrl}/v${timestamp}/3d_models/${timestamp}_model`
+        ];
+        
+        for (const baseTestUrl of urlVariations) {
             for (const ext of ['.glb', '.gltf']) {
-                    const testUrl = possibleUrl + ext;
-                    const urlTest = await testModelUrl(testUrl);
-                    
-                    if (urlTest.success) {
+                const testUrl = baseTestUrl + ext;
+                const urlTest = await testModelUrl(testUrl);
+                
+                if (urlTest.success) {
                         const modelData = {
                             url: testUrl,
                             filename: `shared_model${ext}`,
