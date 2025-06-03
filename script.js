@@ -500,10 +500,10 @@ async function checkUrlParameters() {
         if (modelId.includes('model_')) {
             const timestamp = modelId.split('_')[1];
             if (timestamp && !isNaN(timestamp)) {
-                const possibleUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/raw/upload/v1/3d_models/${timestamp}_model`;
-                
-                // Test both .glb and .gltf extensions
-                for (const ext of ['.glb', '.gltf']) {
+                const possibleUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/raw/upload/3d_models/${timestamp}_model`;
+
+            // Test both .glb and .gltf extensions
+            for (const ext of ['.glb', '.gltf']) {
                     const testUrl = possibleUrl + ext;
                     const urlTest = await testModelUrl(testUrl);
                     
@@ -551,7 +551,7 @@ async function checkUrlParameters() {
 async function testModelUrl(url) {
     try {
         const response = await fetch(url, { 
-            method: 'HEAD', // Only check headers, don't download the file
+            method: 'GET',
             mode: 'cors'
         });
         
