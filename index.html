@@ -26,10 +26,6 @@
                         <p>Powered by Godrej Properties </p>
                     </div>
                 </div>
-                <div class="partner-logos">
-                    <!-- <img src="gpl-tech-logo.png" alt="GPL Tech" class="tech-logo"> -->
-                    <!-- <img src="design-studio-logo.png" alt="Design Studio" class="studio-logo"> -->
-                </div>
             </div>
         </header>
 
@@ -47,8 +43,8 @@
                         camera-controls
                         touch-action="pan-y"
                         auto-rotate
-                        ar
                         ar-modes="webxr scene-viewer quick-look"
+                        ar-placement="floor"
                         environment-image="neutral"
                         exposure="1"
                         shadow-intensity="1"
@@ -138,6 +134,11 @@
                             <span class="btn-text">Launch AR Experience</span>
                         </button>
                         
+                        <button class="ar-btn secondary-btn" id="arLockBtn" onclick="toggleARLock()">
+        <span class="btn-icon">🔒</span>
+        <span class="btn-text">Toggle AR Lock</span>
+    </button>
+    
                         <div class="ar-info">
                             <p class="ar-requirements">
                                 <strong>AR Requirements:</strong><br>

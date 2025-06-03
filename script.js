@@ -626,6 +626,19 @@ function setupARSupport() {
     }
 }
 
+function toggleARLock() {
+    const modelViewer = document.getElementById('modelViewer');
+    const currentPlacement = modelViewer.getAttribute('ar-placement');
+    
+    if (currentPlacement === 'floor') {
+        modelViewer.setAttribute('ar-placement', 'wall');
+        showNotification('AR Model Locked in Place');
+    } else {
+        modelViewer.setAttribute('ar-placement', 'floor');
+        showNotification('AR Model Unlocked - Can be moved');
+    }
+}
+
 function checkAlternativeARSupport() {
     const isAndroid = /Android/i.test(navigator.userAgent);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
