@@ -15,10 +15,32 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeApp() {
     setupEventListeners();
     handleViewportChanges();
-    checkUrlParameters();
+    checkUrlParameters(); // This will now work better on mobile
     setupARSupport();
     preventDoubleTapZoom();
+    initializeMobileSupport(); // New mobile-specific initialization
 }
+
+// Debug function for troubleshooting
+function debugModelLoading(modelId) {
+    console.log('=== DEBUG MODEL LOADING ===');
+    console.log('Model ID:', modelId);
+    console.log('Current URL:', window.location.href);
+    console.log('User Agent:', navigator.userAgent);
+    console.log('Is Mobile:', /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+    console.log('Models in memory:', Array.from(models.keys()));
+    console.log('LocalStorage keys:', Object.keys(localStorage).filter(key => key.startsWith('model_')));
+    
+    // Test network connectivity
+    fetch('https://www.google.com/favicon.ico', { mode: 'no-cors' })
+        .then(() => console.log('Network connectivity: OK'))
+        .catch(() => console.log('Network connectivity: FAILED'));
+        
+    console.log('===============================');
+}
+
+// Make debug function available globally for troubleshooting
+window.debugModelLoading = debugModelLoading;
 
 // Event Listeners Setup
 function setupEventListeners() {
@@ -40,50 +62,43 @@ async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file type
     if (!isValidModelFile(file)) {
         showNotification('Please upload a .GLB or .GLTF file', 'error');
         return;
     }
 
-    // Check file size (optional warning for very large files)
-    if (file.size > 100 * 1024 * 1024) { // 100MB
+    if (file.size > 100 * 1024 * 1024) {
         showNotification('Large file detected. Upload may take a while...', 'warning');
     }
 
     showLoading(true);
     
     try {
-        // Create FormData for Cloudinary upload
+        const modelId = generateModelId();
+        const timestamp = Date.now();
+        
+        // CRITICAL FIX: Use 'raw' resource_type for 3D models
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-        formData.append('resource_type', 'raw'); // Important: tells Cloudinary it's not an image
-        formData.append('public_id', `3d_models/${Date.now()}_${file.name.replace(/\.[^/.]+$/, "")}`); // Custom filename
+        formData.append('resource_type', 'raw'); // FIXED: was 'image', should be 'raw'
+        formData.append('public_id', `3d_models/${timestamp}_${file.name.replace(/\.[^/.]+$/, "")}`);
         
-        // Upload to Cloudinary
         const response = await fetch(CLOUDINARY_UPLOAD_URL, {
             method: 'POST',
             body: formData
         });
         
-        console.log('Upload response status:', response.status);
-        console.log('Upload response headers:', response.headers);
-
         if (!response.ok) {
-    const errorText = await response.text();
-    console.log('Upload error response:', errorText);
-    throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
-}
+            const errorText = await response.text();
+            console.error('Upload error response:', errorText);
+            throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+        }
 
-const result = await response.json();
-console.log('Upload result:', result);
+        const result = await response.json();
+        console.log('Upload result:', result);
         
         if (result.secure_url) {
-            // Generate unique model ID
-            const modelId = generateModelId();
-            
-            // Store model data with Cloudinary URL
             const modelData = {
                 url: result.secure_url,
                 cloudinaryId: result.public_id,
@@ -93,21 +108,16 @@ console.log('Upload result:', result);
                 originalSize: file.size
             };
             
-            // Store reference in localStorage (just the metadata, not the file)
             try {
                 localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
             } catch (storageError) {
                 console.warn('Could not save to localStorage:', storageError);
-                // Continue anyway, the model will still work in current session
             }
             
-            // Store in memory for current session
             models.set(modelId, modelData);
             currentModelUrl = result.secure_url;
             
-            // Load the model
             loadModel(result.secure_url, file.name, modelId);
-            
             showNotification(`${file.name} uploaded successfully! (${formatFileSize(file.size)})`);
         } else {
             throw new Error('No secure URL returned from Cloudinary');
@@ -116,17 +126,10 @@ console.log('Upload result:', result);
     } catch (error) {
         console.error('Upload error:', error);
         showLoading(false);
-        
-        // Provide helpful error messages
-        if (error.message.includes('413')) {
-            showNotification('File too large. Try a smaller model.', 'error');
-        } else if (error.message.includes('network')) {
-            showNotification('Network error. Check your connection and try again.', 'error');
-        } else {
-            showNotification('Upload failed. Please try again.', 'error');
-        }
+        showNotification('Upload failed. Please try again.', 'error');
     }
 }
+
 
 // File Validation
 function isValidModelFile(file) {
@@ -137,49 +140,78 @@ function isValidModelFile(file) {
 
 // Load 3D Model
 function loadModel(url, filename, modelId) {
+    console.log('Loading model:', { url, filename, modelId });
+    
     const modelViewer = document.getElementById('modelViewer');
     
     // Clear any previous model
     modelViewer.src = '';
     
-    // Set new model with proper attributes
+    // Add mobile-specific attributes
+    modelViewer.setAttribute('loading', 'eager');
+    modelViewer.setAttribute('reveal', 'auto');
+    modelViewer.setAttribute('camera-controls', '');
+    modelViewer.setAttribute('touch-action', 'pan-y');
+    
+    // Set new model source
     modelViewer.src = url;
     
     // Store current model info
     modelViewer.dataset.modelId = modelId;
     modelViewer.dataset.filename = filename;
     
-    // Force texture reload and proper lighting
+    // Mobile optimization: Force model update
     setTimeout(() => {
-        modelViewer.dismissPoster();
-        modelViewer.jumpCameraToGoal();
+        if (modelViewer.dismissPoster) {
+            modelViewer.dismissPoster();
+        }
+        if (modelViewer.jumpCameraToGoal) {
+            modelViewer.jumpCameraToGoal();
+        }
     }, 100);
 }
 
 // Model Load Success Handler
-function onModelLoad(event) {
-    const modelViewer = event.target;
-    const filename = modelViewer.dataset.filename;
-    const modelId = modelViewer.dataset.modelId;
-    
+function onModelError(error) {
+    console.error('Model loading error:', error);
     showLoading(false);
-    showModelInfo(true);
-    enableAR(true);
-    generateQRCode(modelId);
-    updateUrlHistory(modelId);
-    showNotification(`${filename} loaded successfully!`);
     
-    // Force proper rendering and texture loading
-    setTimeout(() => {
-        modelViewer.dismissPoster();
-        modelViewer.jumpCameraToGoal();
+    // More specific error messages
+    let errorMessage = 'Error loading model.';
+    
+    if (error && error.detail) {
+        if (error.detail.includes('CORS')) {
+            errorMessage = 'Model blocked by CORS policy. Please try re-uploading.';
+        } else if (error.detail.includes('network')) {
+            errorMessage = 'Network error. Please check your connection.';
+        } else if (error.detail.includes('format')) {
+            errorMessage = 'Invalid model format. Please upload a valid GLB/GLTF file.';
+        }
+    }
+    
+    showNotification(errorMessage, 'error');
+    enableAR(false);
+}
+
+function initializeMobileSupport() {
+    // Detect mobile devices
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+        console.log('Mobile device detected, applying optimizations...');
         
-        // Check if textures are loaded
-        checkTextureStatus(modelViewer);
-    }, 500);
-    
-    // Log model statistics
-    logModelStats(modelViewer);
+        // Add mobile-specific viewport handling
+        const viewport = document.querySelector('meta[name="viewport"]');
+        if (viewport) {
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+        }
+        
+        // Prevent zoom on model viewer
+        const modelViewer = document.getElementById('modelViewer');
+        if (modelViewer) {
+            modelViewer.style.touchAction = 'pan-y';
+        }
+    }
 }
 
 // Check Texture Loading Status
@@ -464,21 +496,23 @@ async function checkUrlParameters() {
     const modelId = urlParams.get('model');
     
     if (modelId) {
+        console.log('Loading model from URL:', modelId);
         showLoading(true);
         
-        // Try to load from localStorage first (for same device)
+        // Try localStorage first
         const storedData = localStorage.getItem(`model_${modelId}`);
         
         if (storedData) {
             try {
                 const modelData = JSON.parse(storedData);
+                console.log('Found stored model data:', modelData);
                 
-                // Validate the stored data has a valid Cloudinary URL
                 if (modelData.url && modelData.url.includes('cloudinary.com')) {
-                    // Test if the Cloudinary URL is still accessible
+                    // Test URL accessibility
                     const urlTest = await testModelUrl(modelData.url);
                     
                     if (urlTest.success) {
+                        console.log('Stored URL is accessible, loading model...');
                         models.set(modelId, modelData);
                         currentModelUrl = modelData.url;
                         
@@ -487,12 +521,8 @@ async function checkUrlParameters() {
                         return;
                     } else {
                         console.warn('Stored model URL is no longer accessible:', urlTest.error);
-                        // Remove invalid data from localStorage
                         localStorage.removeItem(`model_${modelId}`);
                     }
-                } else {
-                    console.warn('Invalid model data in localStorage');
-                    localStorage.removeItem(`model_${modelId}`);
                 }
             } catch (error) {
                 console.error('Error parsing stored model data:', error);
@@ -500,84 +530,91 @@ async function checkUrlParameters() {
             }
         }
         
-        // If localStorage failed or URL is from different device, try alternative methods
-        
-        // Method 1: Try to construct Cloudinary URL from modelId if it contains timestamp
+        // If localStorage failed, try to reconstruct from modelId
         if (modelId.includes('model_')) {
-    const timestamp = modelId.split('_')[1];
-    if (timestamp && !isNaN(timestamp)) {
-        // Try to construct URL similar to the actual upload format
-        const baseUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload`;
-        
-        // Test both with and without version number
-        const urlVariations = [
-            `${baseUrl}/3d_models/${timestamp}_model`,
-            `${baseUrl}/v${timestamp}/3d_models/${timestamp}_model`
-        ];
-        
-        for (const baseTestUrl of urlVariations) {
-            for (const ext of ['.glb', '.gltf']) {
-                const testUrl = baseTestUrl + ext;
-                const urlTest = await testModelUrl(testUrl);
+            const parts = modelId.split('_');
+            if (parts.length >= 2) {
+                const timestamp = parts[1];
                 
-                if (urlTest.success) {
-                        const modelData = {
-                            url: testUrl,
-                            filename: `shared_model${ext}`,
-                            uploadTime: new Date(parseInt(timestamp)).toISOString(),
-                            fileSize: 'Unknown',
-                            originalSize: 0
-                        };
+                if (timestamp && !isNaN(timestamp)) {
+                    // FIXED: Use correct Cloudinary URL for raw files
+                    const baseUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
+                    
+                    // Try different URL patterns
+                    const urlPatterns = [
+                        `${baseUrl}/v${timestamp}/3d_models/${timestamp}_model.glb`,
+                        `${baseUrl}/v${timestamp}/3d_models/${timestamp}_model.gltf`,
+                        `${baseUrl}/3d_models/${timestamp}_model.glb`,
+                        `${baseUrl}/3d_models/${timestamp}_model.gltf`
+                    ];
+                    
+                    for (const testUrl of urlPatterns) {
+                        console.log('Testing URL:', testUrl);
+                        const urlTest = await testModelUrl(testUrl);
                         
-                        models.set(modelId, modelData);
-                        currentModelUrl = testUrl;
-                        
-                        showNotification(`Loading shared 3D model...`);
-                        loadModel(testUrl, modelData.filename, modelId);
-                        
-                        // Store the working model data for future use
-                        try {
-                            localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
-                        } catch (storageError) {
-                            console.warn('Could not save to localStorage:', storageError);
+                        if (urlTest.success) {
+                            console.log('Found working URL:', testUrl);
+                            const modelData = {
+                                url: testUrl,
+                                filename: `shared_model${testUrl.includes('.glb') ? '.glb' : '.gltf'}`,
+                                uploadTime: new Date(parseInt(timestamp)).toISOString(),
+                                fileSize: 'Unknown',
+                                originalSize: 0
+                            };
+                            
+                            models.set(modelId, modelData);
+                            currentModelUrl = testUrl;
+                            
+                            showNotification(`Loading shared 3D model...`);
+                            loadModel(testUrl, modelData.filename, modelId);
+                            
+                            try {
+                                localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
+                            } catch (storageError) {
+                                console.warn('Could not save to localStorage:', storageError);
+                            }
+                            
+                            return;
                         }
-                        
-                        return;
                     }
                 }
             }
         }
         
-        // Method 2: Check if there's a shared models API endpoint (you could implement this)
-        // This would require a backend service to store model metadata
-        
-        // If all methods failed, show error message
         showLoading(false);
         showNotification('Model not found or no longer available. The link may have expired.', 'error');
+        console.error('Failed to load model for ID:', modelId);
         
         // Clean up the URL
         if (window.history && window.history.replaceState) {
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     }
-    }
 }
+
 async function testModelUrl(url) {
     try {
+        console.log('Testing model URL:', url);
+        
+        // Use HEAD request first to avoid downloading the entire file
         const response = await fetch(url, { 
-            method: 'GET',
-            mode: 'cors'
+            method: 'HEAD',
+            mode: 'cors',
+            cache: 'no-cache'
         });
         
         if (response.ok) {
+            console.log('URL test successful:', response.status);
             return { success: true };
         } else {
+            console.log('URL test failed:', response.status, response.statusText);
             return { 
                 success: false, 
                 error: `HTTP ${response.status}: ${response.statusText}` 
             };
         }
     } catch (error) {
+        console.log('URL test error:', error.message);
         return { 
             success: false, 
             error: error.message || 'Network error' 
