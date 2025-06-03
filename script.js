@@ -558,6 +558,7 @@ async function checkUrlParameters() {
         }
     }
 }
+}
 async function testModelUrl(url) {
     try {
         const response = await fetch(url, { 
