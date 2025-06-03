@@ -175,6 +175,10 @@ model-viewer {
     --poster-color: var(--gray-100);
 }
 
+model-viewer::part(default-ar-button) {
+    display: none !important;
+}
+
 /* Loading Overlay */
 .loading-overlay {
     position: absolute;
