@@ -162,18 +162,10 @@ function generateQRCode(modelId) {
     // Clear previous QR code
     const qrContainer = document.getElementById('qrContainer');
     qrContainer.innerHTML = '';
-    
-    // Generate new QR code using the constructor method
-    // Replace the try block in generateQRCode function with:
 try {
-    var qrcode = new QRCode(qrContainer, {
-        text: shareUrl,
-        width: 130,
-        height: 130,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
-    });
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shareUrl)}`;
+    
+    qrContainer.innerHTML = `<img src="${qrImageUrl}" alt="QR Code" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
     
     document.getElementById('shareUrl').value = shareUrl;
 } catch (error) {
