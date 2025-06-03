@@ -211,7 +211,9 @@ function onModelError(error) {
 
 // Generate Unique Model ID
 function generateModelId() {
-    return 'model_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substr(2, 9);
+    return `model_${timestamp}_${randomId}`;
 }
 
 // QR Code Generation
@@ -221,16 +223,116 @@ function generateQRCode(modelId) {
     // Clear previous QR code
     const qrContainer = document.getElementById('qrContainer');
     qrContainer.innerHTML = '';
-try {
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shareUrl)}`;
     
-    qrContainer.innerHTML = `<img src="${qrImageUrl}" alt="QR Code" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
-    
-    document.getElementById('shareUrl').value = shareUrl;
-} catch (error) {
-    console.error('QR Code generation error:', error);
-    qrContainer.innerHTML = '<div class="qr-placeholder">QR Code generation failed</div>';
+    try {
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shareUrl)}`;
+        
+        qrContainer.innerHTML = `
+            <img src="${qrImageUrl}" alt="QR Code" style="max-width: 100%; height: auto; border-radius: 8px;" />
+            <div style="font-size: 10px; color: #666; margin-top: 5px;">
+                Scan to view on any device
+            </div>
+        `;
+        
+        document.getElementById('shareUrl').value = shareUrl;
+        
+        // Show helpful message
+        showNotification('QR code generated! Share this link to view the model on any device.');
+        
+    } catch (error) {
+        console.error('QR Code generation error:', error);
+        qrContainer.innerHTML = '<div class="qr-placeholder">QR Code generation failed</div>';
+    }
 }
+
+async function handleFileUploadImproved(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!isValidModelFile(file)) {
+        showNotification('Please upload a .GLB or .GLTF file', 'error');
+        return;
+    }
+
+    // Check file size (optional warning for very large files)
+    if (file.size > 100 * 1024 * 1024) { // 100MB
+        showNotification('Large file detected. Upload may take a while...', 'warning');
+    }
+
+    showLoading(true);
+    
+    try {
+        // Generate model ID first
+        const modelId = generateModelId();
+        const timestamp = modelId.split('_')[1];
+        
+        // Get file extension
+        const fileExtension = file.name.toLowerCase().endsWith('.glb') ? '.glb' : '.gltf';
+        
+        // Create FormData for Cloudinary upload with predictable naming
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        formData.append('resource_type', 'raw');
+        formData.append('public_id', `3d_models/${timestamp}_model`); // Predictable naming without extension
+        
+        // Upload to Cloudinary
+        const response = await fetch(CLOUDINARY_UPLOAD_URL, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.secure_url) {
+            // Store model data with Cloudinary URL
+            const modelData = {
+                url: result.secure_url,
+                cloudinaryId: result.public_id,
+                filename: file.name,
+                uploadTime: new Date().toISOString(),
+                fileSize: formatFileSize(file.size),
+                originalSize: file.size,
+                fileExtension: fileExtension
+            };
+            
+            // Store reference in localStorage
+            try {
+                localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
+            } catch (storageError) {
+                console.warn('Could not save to localStorage:', storageError);
+            }
+            
+            // Store in memory for current session
+            models.set(modelId, modelData);
+            currentModelUrl = result.secure_url;
+            
+            // Load the model
+            loadModel(result.secure_url, file.name, modelId);
+            
+            showNotification(`${file.name} uploaded successfully! (${formatFileSize(file.size)})`);
+        } else {
+            throw new Error('No secure URL returned from Cloudinary');
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showLoading(false);
+        
+        // Provide helpful error messages
+        if (error.message.includes('413')) {
+            showNotification('File too large. Try a smaller model.', 'error');
+        } else if (error.message.includes('network')) {
+            showNotification('Network error. Check your connection and try again.', 'error');
+        } else {
+            showNotification('Upload failed. Please try again.', 'error');
+        }
+    }
 }
 
 // Copy to Clipboard Function
@@ -354,41 +456,121 @@ function updateUrlHistory(modelId) {
 }
 
 // Replace the existing checkUrlParameters function
-function checkUrlParameters() {
+async function checkUrlParameters() {
     const urlParams = new URLSearchParams(window.location.search);
     const modelId = urlParams.get('model');
     
     if (modelId) {
-        // Try to load from localStorage first
+        showLoading(true);
+        
+        // Try to load from localStorage first (for same device)
         const storedData = localStorage.getItem(`model_${modelId}`);
         
         if (storedData) {
             try {
                 const modelData = JSON.parse(storedData);
                 
-                // Validate the stored data has a valid URL
+                // Validate the stored data has a valid Cloudinary URL
                 if (modelData.url && modelData.url.includes('cloudinary.com')) {
-                    models.set(modelId, modelData);
-                    currentModelUrl = modelData.url;
+                    // Test if the Cloudinary URL is still accessible
+                    const urlTest = await testModelUrl(modelData.url);
                     
-                    showNotification(`Loading shared model: ${modelData.filename}...`);
-                    loadModel(modelData.url, modelData.filename, modelId);
-                    return;
+                    if (urlTest.success) {
+                        models.set(modelId, modelData);
+                        currentModelUrl = modelData.url;
+                        
+                        showNotification(`Loading shared model: ${modelData.filename}...`);
+                        loadModel(modelData.url, modelData.filename, modelId);
+                        return;
+                    } else {
+                        console.warn('Stored model URL is no longer accessible:', urlTest.error);
+                        // Remove invalid data from localStorage
+                        localStorage.removeItem(`model_${modelId}`);
+                    }
                 } else {
                     console.warn('Invalid model data in localStorage');
+                    localStorage.removeItem(`model_${modelId}`);
                 }
             } catch (error) {
                 console.error('Error parsing stored model data:', error);
+                localStorage.removeItem(`model_${modelId}`);
             }
         }
         
-        // If localStorage failed, show error message
-        showNotification('Model not found. It may have expired or been removed.', 'error');
+        // If localStorage failed or URL is from different device, try alternative methods
         
-        // Optional: Try to clean up the URL
+        // Method 1: Try to construct Cloudinary URL from modelId if it contains timestamp
+        if (modelId.includes('model_')) {
+            const timestamp = modelId.split('_')[1];
+            if (timestamp && !isNaN(timestamp)) {
+                const possibleUrl = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/raw/upload/v1/3d_models/${timestamp}_model`;
+                
+                // Test both .glb and .gltf extensions
+                for (const ext of ['.glb', '.gltf']) {
+                    const testUrl = possibleUrl + ext;
+                    const urlTest = await testModelUrl(testUrl);
+                    
+                    if (urlTest.success) {
+                        const modelData = {
+                            url: testUrl,
+                            filename: `shared_model${ext}`,
+                            uploadTime: new Date(parseInt(timestamp)).toISOString(),
+                            fileSize: 'Unknown',
+                            originalSize: 0
+                        };
+                        
+                        models.set(modelId, modelData);
+                        currentModelUrl = testUrl;
+                        
+                        showNotification(`Loading shared 3D model...`);
+                        loadModel(testUrl, modelData.filename, modelId);
+                        
+                        // Store the working model data for future use
+                        try {
+                            localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
+                        } catch (storageError) {
+                            console.warn('Could not save to localStorage:', storageError);
+                        }
+                        
+                        return;
+                    }
+                }
+            }
+        }
+        
+        // Method 2: Check if there's a shared models API endpoint (you could implement this)
+        // This would require a backend service to store model metadata
+        
+        // If all methods failed, show error message
+        showLoading(false);
+        showNotification('Model not found or no longer available. The link may have expired.', 'error');
+        
+        // Clean up the URL
         if (window.history && window.history.replaceState) {
             window.history.replaceState({}, document.title, window.location.pathname);
         }
+    }
+}
+async function testModelUrl(url) {
+    try {
+        const response = await fetch(url, { 
+            method: 'HEAD', // Only check headers, don't download the file
+            mode: 'cors'
+        });
+        
+        if (response.ok) {
+            return { success: true };
+        } else {
+            return { 
+                success: false, 
+                error: `HTTP ${response.status}: ${response.statusText}` 
+            };
+        }
+    } catch (error) {
+        return { 
+            success: false, 
+            error: error.message || 'Network error' 
+        };
     }
 }
 
