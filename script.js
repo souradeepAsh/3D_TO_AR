@@ -139,6 +139,12 @@ function loadModel(url, filename, modelId) {
     // Clear any previous model
     modelViewer.src = '';
     
+    // Add material-specific attributes
+    modelViewer.setAttribute('tone-mapping', 'neutral');
+    modelViewer.setAttribute('exposure', '1');
+    modelViewer.setAttribute('shadow-intensity', '0');
+    modelViewer.setAttribute('environment-image', 'neutral');
+    
     // Set new model with proper attributes
     modelViewer.src = url;
     
@@ -146,11 +152,13 @@ function loadModel(url, filename, modelId) {
     modelViewer.dataset.modelId = modelId;
     modelViewer.dataset.filename = filename;
     
-    // Force texture reload and proper lighting
+    // Force material reload
     setTimeout(() => {
         modelViewer.dismissPoster();
         modelViewer.jumpCameraToGoal();
-    }, 100);
+        // Force material update
+        modelViewer.setAttribute('tone-mapping', 'aces');
+    }, 500);
 }
 
 // Model Load Success Handler

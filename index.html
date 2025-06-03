@@ -7,7 +7,8 @@
     
     <!-- External Libraries -->
     <!-- <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script> -->
-    <script type="module" src="https://unpkg.com/@google/model-viewer@^3.0.0/dist/model-viewer.min.js"></script>
+    <!-- <script type="module" src="https://unpkg.com/@google/model-viewer@^3.0.0/dist/model-viewer.min.js"></script> -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer@^3.4.0/dist/model-viewer.min.js"></script>
     
     <!-- Local Stylesheets -->
     <link rel="stylesheet" href="styles.css">
@@ -20,23 +21,24 @@
             </div>
             
             <model-viewer
-                id="modelViewer"
-                camera-controls
-                touch-action="pan-y"
-                auto-rotate
-                ar
-                ar-modes="webxr scene-viewer quick-look"
-                environment-image="neutral"
-                exposure="1"
-                shadow-intensity="1"
-                shadow-softness="0.5"
-                camera-orbit="45deg 55deg 4m"
-                min-camera-orbit="auto auto 2m"
-                max-camera-orbit="auto auto 10m"
-                tone-mapping="aces"
-                loading="eager"
-                reveal="auto"
-                style="--poster-color: transparent;">
+    id="modelViewer"
+    camera-controls
+    touch-action="pan-y"
+    auto-rotate
+    ar
+    ar-modes="webxr scene-viewer quick-look"
+    environment-image="neutral"
+    exposure="1"
+    shadow-intensity="0"
+    shadow-softness="0.5"
+    camera-orbit="45deg 55deg 4m"
+    min-camera-orbit="auto auto 2m"
+    max-camera-orbit="auto auto 10m"
+    tone-mapping="neutral"
+    loading="eager"
+    reveal="auto"
+    disable-pan
+    style="--poster-color: transparent;">
                 
                 <div class="progress-bar" id="progress-bar" slot="progress-bar">
                     <div class="update-bar"></div>
