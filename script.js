@@ -229,9 +229,6 @@ function generateQRCode(modelId) {
         
         qrContainer.innerHTML = `
             <img src="${qrImageUrl}" alt="QR Code" style="max-width: 100%; height: auto; border-radius: 8px;" />
-            <div style="font-size: 10px; color: #666; margin-top: 5px;">
-                Scan to view on any device
-            </div>
         `;
         
         document.getElementById('shareUrl').value = shareUrl;
