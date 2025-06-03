@@ -2,6 +2,10 @@
 let currentModelUrl = null;
 let models = new Map(); // Store uploaded models
 
+const CLOUDINARY_CLOUD_NAME = 'dwocdg3m9'; // Replace with your Cloudinary cloud name
+const CLOUDINARY_UPLOAD_PRESET = '3D_TO_AR'; // Replace with your upload preset name
+const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`;
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
@@ -32,7 +36,7 @@ function setupEventListeners() {
 }
 
 // File Upload Handler
-function handleFileUpload(event) {
+async function handleFileUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -42,39 +46,80 @@ function handleFileUpload(event) {
         return;
     }
 
-    showLoading(true);
+    // Check file size (optional warning for very large files)
+    if (file.size > 100 * 1024 * 1024) { // 100MB
+        showNotification('Large file detected. Upload may take a while...', 'warning');
+    }
 
-    // Generate unique ID for this model
-    const modelId = generateModelId();
-    
-    // Convert file to base64 for cross-device sharing
-const reader = new FileReader();
-reader.onload = function(e) {
-    const base64Data = e.target.result;
-    currentModelUrl = base64Data;
-    
-    // Store model data in localStorage for sharing
-    const modelData = {
-        data: base64Data,
-        filename: file.name,
-        uploadTime: new Date().toISOString(),
-        fileSize: formatFileSize(file.size)
-    };
+    showLoading(true);
     
     try {
-        localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
-        models.set(modelId, modelData);
-        loadModel(base64Data, file.name, modelId);
+        // Create FormData for Cloudinary upload
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        formData.append('resource_type', 'raw'); // Important: tells Cloudinary it's not an image
+        formData.append('public_id', `3d_models/${Date.now()}_${file.name.replace(/\.[^/.]+$/, "")}`); // Custom filename
+        
+        // Upload to Cloudinary
+        const response = await fetch(CLOUDINARY_UPLOAD_URL, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.secure_url) {
+            // Generate unique model ID
+            const modelId = generateModelId();
+            
+            // Store model data with Cloudinary URL
+            const modelData = {
+                url: result.secure_url,
+                cloudinaryId: result.public_id,
+                filename: file.name,
+                uploadTime: new Date().toISOString(),
+                fileSize: formatFileSize(file.size),
+                originalSize: file.size
+            };
+            
+            // Store reference in localStorage (just the metadata, not the file)
+            try {
+                localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
+            } catch (storageError) {
+                console.warn('Could not save to localStorage:', storageError);
+                // Continue anyway, the model will still work in current session
+            }
+            
+            // Store in memory for current session
+            models.set(modelId, modelData);
+            currentModelUrl = result.secure_url;
+            
+            // Load the model
+            loadModel(result.secure_url, file.name, modelId);
+            
+            showNotification(`${file.name} uploaded successfully! (${formatFileSize(file.size)})`);
+        } else {
+            throw new Error('No secure URL returned from Cloudinary');
+        }
+        
     } catch (error) {
-        showNotification('File too large for sharing. Try a smaller model.', 'error');
+        console.error('Upload error:', error);
         showLoading(false);
-        return;
+        
+        // Provide helpful error messages
+        if (error.message.includes('413')) {
+            showNotification('File too large. Try a smaller model.', 'error');
+        } else if (error.message.includes('network')) {
+            showNotification('Network error. Check your connection and try again.', 'error');
+        } else {
+            showNotification('Upload failed. Please try again.', 'error');
+        }
     }
-};
-reader.readAsDataURL(file);
-
-    // Load the model
-    // loadModel(objectUrl, file.name, modelId);
 }
 
 // File Validation
@@ -308,24 +353,41 @@ function updateUrlHistory(modelId) {
     window.history.pushState({modelId}, '', newUrl);
 }
 
+// Replace the existing checkUrlParameters function
 function checkUrlParameters() {
     const urlParams = new URLSearchParams(window.location.search);
     const modelId = urlParams.get('model');
     
     if (modelId) {
-        // Try to load from localStorage
+        // Try to load from localStorage first
         const storedData = localStorage.getItem(`model_${modelId}`);
+        
         if (storedData) {
             try {
                 const modelData = JSON.parse(storedData);
-                models.set(modelId, modelData);
-                currentModelUrl = modelData.data;
-                loadModel(modelData.data, modelData.filename, modelId);
+                
+                // Validate the stored data has a valid URL
+                if (modelData.url && modelData.url.includes('cloudinary.com')) {
+                    models.set(modelId, modelData);
+                    currentModelUrl = modelData.url;
+                    
+                    showNotification(`Loading shared model: ${modelData.filename}...`);
+                    loadModel(modelData.url, modelData.filename, modelId);
+                    return;
+                } else {
+                    console.warn('Invalid model data in localStorage');
+                }
             } catch (error) {
-                showNotification('Failed to load shared model', 'error');
+                console.error('Error parsing stored model data:', error);
             }
-        } else {
-            showNotification('Model not found or expired. Please upload again.', 'error');
+        }
+        
+        // If localStorage failed, show error message
+        showNotification('Model not found. It may have expired or been removed.', 'error');
+        
+        // Optional: Try to clean up the URL
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
         }
     }
 }
