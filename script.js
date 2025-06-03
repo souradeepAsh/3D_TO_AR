@@ -67,11 +67,17 @@ async function handleFileUpload(event) {
             body: formData
         });
         
+        console.log('Upload response status:', response.status);
+        console.log('Upload response headers:', response.headers);
+
         if (!response.ok) {
-            throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
-        }
-        
-        const result = await response.json();
+    const errorText = await response.text();
+    console.log('Upload error response:', errorText);
+    throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+}
+
+const result = await response.json();
+console.log('Upload result:', result);
         
         if (result.secure_url) {
             // Generate unique model ID
