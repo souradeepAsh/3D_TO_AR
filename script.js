@@ -53,7 +53,7 @@ function setupEventListeners() {
     
     // Model viewer events
     const modelViewer = document.getElementById('modelViewer');
-    modelViewer.addEventListener('load', onModelLoad);
+    // modelViewer.addEventListener('load', onModelLoad);
     modelViewer.addEventListener('error', onModelError);
 }
 
