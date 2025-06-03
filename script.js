@@ -185,6 +185,10 @@ function checkTextureStatus(modelViewer) {
         const scene = modelViewer.model;
         if (scene) {
             console.log('Model loaded with materials:', scene.materials?.length || 0);
+
+            if (scene.extensionsUsed && scene.extensionsUsed.includes('KHR_materials_pbrSpecularGlossiness')) {
+                console.info('Model uses PBR Specular-Glossiness materials - this is normal');
+            }
             
             // Force material update
             if (scene.materials) {
@@ -198,17 +202,24 @@ function checkTextureStatus(modelViewer) {
             }
         }
     } catch (error) {
-        console.warn('Could not analyze model materials:', error);
+        // console.warn('Could not analyze model materials:', error);
+        if (!error.message.includes('KHR_materials_pbrSpecularGlossiness')) {
+            console.warn('Could not analyze model materials:', error);
+        }
     }
 }
 
 // Model Load Error Handler
 function onModelError(error) {
+    // Suppress known extension warnings
+    if (error.message && error.message.includes('KHR_materials_pbrSpecularGlossiness')) {
+        console.warn('Model uses PBR Specular-Glossiness materials (non-critical warning)');
+        return;
+    }
+    
     showLoading(false);
     showNotification('Error loading model. Please try another file.', 'error');
     console.error('Model loading error:', error);
-    
-    // Reset AR button state
     enableAR(false);
 }
 
