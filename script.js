@@ -560,7 +560,7 @@ async function checkUrlParameters() {
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     }
-}
+    }
 }
 async function testModelUrl(url) {
     try {
