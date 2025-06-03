@@ -867,16 +867,6 @@ model-viewer {
     }
 }
 
-/* High DPI Displays */
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-    .main-logo,
-    .tech-logo,
-    .studio-logo {
-        image-rendering: -webkit-optimize-contrast;
-        image-rendering: crisp-edges;
-    }
-}
-
 /* Dark Mode Support (Optional) */
 @media (prefers-color-scheme: dark) {
     /* Keep light theme for professional corporate look */
