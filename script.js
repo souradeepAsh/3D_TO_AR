@@ -139,12 +139,6 @@ function loadModel(url, filename, modelId) {
     // Clear any previous model
     modelViewer.src = '';
     
-    // Add material-specific attributes
-    modelViewer.setAttribute('tone-mapping', 'neutral');
-    modelViewer.setAttribute('exposure', '1');
-    modelViewer.setAttribute('shadow-intensity', '0');
-    modelViewer.setAttribute('environment-image', 'neutral');
-    
     // Set new model with proper attributes
     modelViewer.src = url;
     
@@ -152,13 +146,11 @@ function loadModel(url, filename, modelId) {
     modelViewer.dataset.modelId = modelId;
     modelViewer.dataset.filename = filename;
     
-    // Force material reload
+    // Force texture reload and proper lighting
     setTimeout(() => {
         modelViewer.dismissPoster();
         modelViewer.jumpCameraToGoal();
-        // Force material update
-        modelViewer.setAttribute('tone-mapping', 'aces');
-    }, 500);
+    }, 100);
 }
 
 // Model Load Success Handler
@@ -210,7 +202,7 @@ function checkTextureStatus(modelViewer) {
             }
         }
     } catch (error) {
-        // console.warn('Could not analyze model materials:', error);
+        //console.warn('Could not analyze model materials:', error);
         if (!error.message.includes('KHR_materials_pbrSpecularGlossiness')) {
             console.warn('Could not analyze model materials:', error);
         }
