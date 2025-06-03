@@ -43,24 +43,38 @@ function handleFileUpload(event) {
     }
 
     showLoading(true);
-    
-    // Create object URL for the file
-    const objectUrl = URL.createObjectURL(file);
-    currentModelUrl = objectUrl;
-    
+
     // Generate unique ID for this model
     const modelId = generateModelId();
     
-    // Store model data
-    models.set(modelId, {
-        url: objectUrl,
+    // Convert file to base64 for cross-device sharing
+const reader = new FileReader();
+reader.onload = function(e) {
+    const base64Data = e.target.result;
+    currentModelUrl = base64Data;
+    
+    // Store model data in localStorage for sharing
+    const modelData = {
+        data: base64Data,
         filename: file.name,
         uploadTime: new Date().toISOString(),
         fileSize: formatFileSize(file.size)
-    });
+    };
+    
+    try {
+        localStorage.setItem(`model_${modelId}`, JSON.stringify(modelData));
+        models.set(modelId, modelData);
+        loadModel(base64Data, file.name, modelId);
+    } catch (error) {
+        showNotification('File too large for sharing. Try a smaller model.', 'error');
+        showLoading(false);
+        return;
+    }
+};
+reader.readAsDataURL(file);
 
     // Load the model
-    loadModel(objectUrl, file.name, modelId);
+    // loadModel(objectUrl, file.name, modelId);
 }
 
 // File Validation
@@ -298,10 +312,21 @@ function checkUrlParameters() {
     const urlParams = new URLSearchParams(window.location.search);
     const modelId = urlParams.get('model');
     
-    if (modelId && models.has(modelId)) {
-        const modelData = models.get(modelId);
-        currentModelUrl = modelData.url;
-        loadModel(modelData.url, modelData.filename, modelId);
+    if (modelId) {
+        // Try to load from localStorage
+        const storedData = localStorage.getItem(`model_${modelId}`);
+        if (storedData) {
+            try {
+                const modelData = JSON.parse(storedData);
+                models.set(modelId, modelData);
+                currentModelUrl = modelData.data;
+                loadModel(modelData.data, modelData.filename, modelId);
+            } catch (error) {
+                showNotification('Failed to load shared model', 'error');
+            }
+        } else {
+            showNotification('Model not found or expired. Please upload again.', 'error');
+        }
     }
 }
 
